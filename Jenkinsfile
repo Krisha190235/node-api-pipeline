@@ -1,107 +1,86 @@
 pipeline {
-    agent any
+  agent any
 
-    options {
-        ansiColor('xterm')
-        timestamps()
+  options {
+    timestamps()
+    ansiColor('xterm')
+  }
+
+  environment {
+    DOCKER_BUILDKIT = '1'
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
+    stage('Build') {
+      steps {
+        wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'xterm']) {
+          sh '''
+            node -v
+            npm -v
+            npm ci
+            npm run build
+            docker build -t node-api:${BUILD_NUMBER} .
+          '''
         }
-
-        stage('Build') {
-            steps {
-                wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'xterm']) {
-                    sh '''
-                        node -v
-                        npm -v
-                        npm ci
-                        npm run build
-                        docker build -t node-api:${BUILD_NUMBER} .
-                    '''
-                }
-            }
-        }
-
-        stage('Test') {
-            steps {
-                wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'xterm']) {
-                    sh 'npm test'
-                }
-            }
-            post {
-                always {
-                    junit 'junit.xml'
-                    recordCoverage(
-                        tools: [coberturaAdapter('coverage/cobertura-coverage.xml')],
-                        sourceDirectories: [[path: 'src']],
-                        failOnError: false
-                    )
-                }
-            }
-        }
-
-        stage('Code Quality') {
-            when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
-            }
-            steps {
-                echo '🔍 Running code quality checks (e.g., lint)...'
-                sh 'npm run lint || true'
-            }
-        }
-
-        stage('Security') {
-            when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
-            }
-            steps {
-                echo '🔒 Running security scans...'
-                sh 'npm audit || true'
-            }
-        }
-
-        stage('Deploy (Staging)') {
-            when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
-            }
-            steps {
-                echo '🚀 Deploying to staging environment...'
-            }
-        }
-
-        stage('Release (Approve)') {
-            steps {
-                input message: 'Approve release to production?', ok: 'Release'
-            }
-        }
-
-        stage('Deploy (Production)') {
-            steps {
-                echo '🚀 Deploying to production environment...'
-            }
-        }
-
-        stage('Monitoring & Alerting') {
-            steps {
-                echo '📊 Updating monitoring dashboards and alerts...'
-            }
-        }
+      }
     }
 
-    post {
+    stage('Test') {
+      steps {
+        wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'xterm']) {
+          // produce Cobertura XML so Jenkins can read it
+          sh 'npm test -- --coverage --coverageReporters=cobertura --coverageReporters=text-summary'
+        }
+      }
+      post {
         always {
-            echo 'Pipeline run finished.'
+          // Pick up any junit XML if you generate it (safe if none exist)
+          junit allowEmptyResults: true, testResults: 'reports/junit/**/*.xml'
+
+          // ✅ Coverage plugin — Cobertura adapter (correct symbol is `cobertura`)
+          recordCoverage(
+            tools: [cobertura(pattern: 'coverage/cobertura-coverage.xml')],
+            sourceDirectories: ['src'],
+            failOnError: false
+          )
+
+          // keep artifacts for later inspection
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'coverage/**, reports/**, **/Dockerfile'
         }
-        failure {
-            echo '❌ Pipeline failed. Check logs above.'
-        }
-        success {
-            echo '✅ Pipeline succeeded!'
-        }
+      }
     }
+
+    stage('Code Quality') {
+      when { expression { false } }  // placeholder
+      steps { echo 'Add ESLint/Sonar here' }
+    }
+
+    stage('Security') {
+      when { expression { false } }
+      steps { echo 'Add npm audit/trivy here' }
+    }
+
+    stage('Deploy (Staging)') {
+      when { expression { false } }
+      steps { echo 'Deploy placeholder' }
+    }
+  }
+
+  post {
+    always {
+      echo 'Pipeline run finished.'
+    }
+    failure {
+      echo '❌ Pipeline failed. Check logs above.'
+    }
+    success {
+      echo '✅ Pipeline succeeded.'
+    }
+  }
 }
