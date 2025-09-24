@@ -4,14 +4,14 @@ pipeline {
   environment {
     IMAGE = "node-api"
     TAG = "${env.BUILD_NUMBER}"
-    REGISTRY = ""         // optional
-    DOCKERHUB_CRED = ""   // optional credentialsId
-    SONARQUBE_SERVER = "SonarQubeServer" // configure this in Jenkins if you use SonarQube
+    REGISTRY = ""
+    DOCKERHUB_CRED = ""
+    SONARQUBE_SERVER = "SonarQubeServer"
   }
 
   options {
     timestamps()
-    ansiColor('xterm')
+    ansiColor('xterm') // ✅ Colored logs now work
   }
 
   stages {
@@ -32,7 +32,8 @@ pipeline {
     stage('Test') {
       steps {
         sh 'npm test'
-        junit 'junit.xml' // ✅ publish test results
+        junit 'junit.xml'
+        // ✅ Publish coverage report to Jenkins Coverage plugin
         publishCoverage adapters: [cobertura('coverage/cobertura-coverage.xml')],
                         sourceFileResolver: sourceFiles('STORE_LAST_BUILD'),
                         failNoReports: true
@@ -86,7 +87,7 @@ pipeline {
     stage('Monitoring & Alerting') {
       steps {
         sh 'curl -fsS http://localhost:3000/metrics | head -n 20 || true'
-        echo 'Hook this stage to Prometheus, Grafana, or Datadog for real-time alerts.'
+        echo 'Hook this stage to Prometheus/Grafana or Datadog for real alerts.'
       }
     }
   }
