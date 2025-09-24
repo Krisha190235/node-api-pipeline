@@ -6,7 +6,7 @@ pipeline {
     TAG = "${env.BUILD_NUMBER}"
     REGISTRY = ""         // optional
     DOCKERHUB_CRED = ""   // optional credentialsId
-    SONARQUBE_SERVER = "SonarQubeServer" // if you have SonarQube configured
+    SONARQUBE_SERVER = "SonarQubeServer" // configure this in Jenkins if you use SonarQube
   }
 
   options {
@@ -32,10 +32,10 @@ pipeline {
     stage('Test') {
       steps {
         sh 'npm test'
-        junit 'junit.xml' // if you export junit; else omit
-      }
-      post {
-        always { cobertura autoUpdateHealth: false, coberturaReportFile: 'coverage/cobertura-coverage.xml', failNoReports: false }
+        junit 'junit.xml' // ✅ publish test results
+        publishCoverage adapters: [cobertura('coverage/cobertura-coverage.xml')],
+                        sourceFileResolver: sourceFiles('STORE_LAST_BUILD'),
+                        failNoReports: true
       }
     }
 
@@ -56,8 +56,8 @@ pipeline {
 
     stage('Security') {
       steps {
-        sh 'npm run audit'          // dependency CVEs
-        sh 'docker run --rm -v $PWD:/src aquasec/trivy:latest fs /src || true'  // optional: Trivy FS scan
+        sh 'npm run audit'
+        sh 'docker run --rm -v $PWD:/src aquasec/trivy:latest fs /src || true'
       }
     }
 
@@ -86,14 +86,14 @@ pipeline {
     stage('Monitoring & Alerting') {
       steps {
         sh 'curl -fsS http://localhost:3000/metrics | head -n 20 || true'
-        echo 'Hook this stage to Prometheus scrape or Datadog agent for bonus marks.'
+        echo 'Hook this stage to Prometheus, Grafana, or Datadog for real-time alerts.'
       }
     }
   }
 
   post {
-    success { echo "Pipeline OK: ${env.BUILD_TAG}" }
-    failure { echo "Pipeline FAILED. Check stages for details." }
-    always  { echo 'Run finished.' }
+    success { echo "✅ Pipeline completed successfully: ${env.BUILD_TAG}" }
+    failure { echo "❌ Pipeline failed. Check logs above." }
+    always  { echo 'Pipeline run finished.' }
   }
 }
