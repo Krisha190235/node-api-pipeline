@@ -1,0 +1,13 @@
+services:
+  api:
+    build: .
+    image: node-api:${TAG:-dev}
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+    deploy:  # ignored by compose, useful hint for swarm/k8s later
+      replicas: 1
+profiles:
+  - staging
+  - production
